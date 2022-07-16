@@ -1,0 +1,78 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  creationTimestamp: null
+  labels:
+    app: upskill-app
+  name: upskill-app
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: upskill-app
+  template:
+    metadata:
+      labels:
+        app: upskill-app
+    spec:
+      containers:
+      - image: superfast/upskill:app
+        name: app
+        ports:
+          - name: upskill-app
+            containerPort: 80
+            protocol: TCP
+        env:
+          - name: CURRENT_ENV
+            value: dev
+          - name: DATABASE_HOST
+            value: postgres
+          - name: DATABASE_USERNAME
+            valueFrom:
+              secretKeyRef:
+                name: postgres-creds
+                key: POSTGRES_USER
+          - name: DATABASE_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: postgres-creds
+                key: POSTGRES_PASSWORD
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: upskill-app
+  name: upskill-app
+spec:
+  type: NodePort
+  ports:
+  - name: upskill-app
+    port: 80
+    protocol: TCP
+    targetPort: 80
+  selector:
+    app: upskill-app
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: worker
+spec:
+  jobTemplate:
+    metadata:
+      name: worker
+    spec:
+      template:
+        metadata:
+        spec:
+          containers:
+          - image: superfast/upskill:worker
+            name: worker
+            env:
+              - name: CURRENT_ENV
+                value: dev
+              - name: API_HOST
+                value: upskill-app
+          restartPolicy: OnFailure
+  schedule: '* * * * *'

@@ -1,0 +1,32 @@
+version: "3"
+
+services:
+  # db:
+  #   image: postgres:11
+  #   ports:
+  #     - "5432:5432"
+  #   environment:
+  #     - POSTGRES_USER=postgres
+  #     - POSTGRES_PASSWORD=postgres
+  #     - POSTGRES_DB=stats_db
+  web:
+    build: .
+    ports:
+      - "80:80"
+    # depends_on:
+    #   - db
+    environment:
+      - CURRENT_ENV=dev
+      - DATABASE_USERNAME=upskill_user
+      - DATABASE_PASSWORD=upskill_passwd
+      - DATABASE_HOST=host.docker.internal
+      - DATABASE_NAME=stats
+      - DATABASE_PORT=5432
+  # web-worker:
+  #   build: ./worker
+  #   depends_on:
+  #     - web
+  #   environment:
+  #     - CURRENT_ENV=dev
+  #     - API_HOST=web
+  #   command: bash -c "python3 main.py"

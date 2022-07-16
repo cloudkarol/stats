@@ -1,0 +1,85 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  labels:
+    app: replica
+  name: replica
+spec:
+  replicas: 1
+  serviceName: replica
+  selector:
+    matchLabels:
+      app: replica
+  template:
+    metadata:
+      labels:
+        app: replica
+    spec:
+      volumes:
+        - name: postgres-config
+          configMap:
+            name: postgres-config
+      initContainers:
+        - image: postgres:10.5
+          name: setup-replica
+          env:
+          - name: PGPASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: postgres-creds
+                key: REPLICA_PASSWORD
+          command:
+          - sh
+          - -c
+          - |
+            if [ -z "$(ls -A /var/lib/postgresql/data/pgdata)" ]; then
+                echo "Running pg_basebackup to catch up replication server...";
+                pg_basebackup -R -h postgres -D /var/lib/postgresql/data/pgdata -P -U replication; 
+                chown -R postgres:postgres $PGDATA;
+            else
+                echo "Skipping pg_basebackup because directory is not empty"; 
+            fi
+          volumeMounts:
+            - mountPath: /var/lib/postgresql/data/pgdata
+              name: postgres-replica-volume
+              subPath: postgres-db
+      containers:
+        - image: postgres:10.5
+          args: ['-c', 'config_file=/etc/postgres.conf']
+          name: postgres-replica
+          ports:
+          - name: postgres-rep
+            containerPort: 5432
+            protocol: TCP
+          env:
+            - name: POSTGRES_USER
+              value: postgres
+            - name: PGUSER
+              value: postgres
+            - name: POSTGRES_DB
+              value: postgres
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-creds
+                  key: POSTGRES_PASSWORD
+          volumeMounts:
+            - name: postgres-replica-volume
+              mountPath: /var/lib/postgresql/data/pgdata
+              subPath: postgres-db
+            - name: postgres-config
+              mountPath: /etc/replica.conf
+              subPath: replica.conf
+            - name: postgres-config
+              mountPath: /etc/postgres.conf
+              subPath: postgres.conf
+  volumeClaimTemplates:
+  - metadata:
+      name: postgres-replica-volume
+    spec:
+      accessModes: ["ReadWriteOnce"]
+      resources:
+        requests:
+          storage: 1Gi
